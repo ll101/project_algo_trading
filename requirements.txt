@@ -1,0 +1,17 @@
+alpaca-py
+backtesting
+finnhub-python
+lightweight-charts
+pandas
+polygon-api-client
+psycopg2-binary
+python-binance
+python-decouple
+python-dotenv
+requests
+sqlalchemy
+timescaledb
+ta-lib
+talipp
+websocket-client
+pytest
