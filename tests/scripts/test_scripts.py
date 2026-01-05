@@ -16,7 +16,7 @@ class TestScripts(unittest.TestCase):
     
     def setUp(self):
         """Set up test fixtures."""
-        self.project_root = Path(__file__).parent.parent
+        self.project_root = Path(__file__).parent.parent.parent
         self.scripts_dir = self.project_root / 'scripts'
         self.docker_dir = self.project_root / 'docker'
     

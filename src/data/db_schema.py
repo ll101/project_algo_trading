@@ -73,9 +73,7 @@ def create_stock_table(schema_name: str = 'trading') -> bool:
                 CREATE TABLE IF NOT EXISTS {schema_name}.stock (
                     id SERIAL PRIMARY KEY,
                     symbol TEXT NOT NULL UNIQUE,
-                    company_name TEXT NOT NULL,
-                    created_at TIMESTAMPTZ DEFAULT NOW(),
-                    updated_at TIMESTAMPTZ DEFAULT NOW()
+                    company_name TEXT NOT NULL
                 );
             """)
             
@@ -161,6 +159,7 @@ def create_quotes_table(schema_name: str = 'trading') -> bool:
             
             cursor.execute(f"""
                 CREATE TABLE IF NOT EXISTS {schema_name}.quotes (
+                    id SERIAL,
                     stock_id INTEGER NOT NULL,
                     time TIMESTAMPTZ NOT NULL,
                     bid_price NUMERIC(18, 4) NOT NULL,
@@ -171,8 +170,9 @@ def create_quotes_table(schema_name: str = 'trading') -> bool:
                     ask_exchange VARCHAR(1),
                     conditions TEXT[],
                     tape VARCHAR(1),
-                    PRIMARY KEY (time, stock_id),
-                    FOREIGN KEY (stock_id) REFERENCES {schema_name}.stock(id) ON DELETE CASCADE
+                    PRIMARY KEY (time, stock_id, id),
+                    FOREIGN KEY (stock_id) REFERENCES {schema_name}.stock(id) ON DELETE CASCADE,
+                    UNIQUE (time, stock_id, bid_price, bid_size, ask_price, ask_size, bid_exchange, ask_exchange, tape)
                 );
             """)
             
@@ -210,14 +210,15 @@ def create_trades_table(schema_name: str = 'trading') -> bool:
             
             cursor.execute(f"""
                 CREATE TABLE IF NOT EXISTS {schema_name}.trades (
-                    time TIMESTAMPTZ NOT NULL,
                     stock_id INTEGER NOT NULL,
+                    trade_id INTEGER NOT NULL,
+                    time TIMESTAMPTZ NOT NULL,
                     price NUMERIC(18, 4) NOT NULL,
                     size INTEGER NOT NULL,
                     conditions TEXT[],
+                    exchange VARCHAR(1),
                     tape VARCHAR(1),
-                    created_at TIMESTAMPTZ DEFAULT NOW(),
-                    PRIMARY KEY (time, stock_id, price, size),
+                    PRIMARY KEY (time, stock_id, trade_id),
                     FOREIGN KEY (stock_id) REFERENCES {schema_name}.stock(id) ON DELETE CASCADE
                 );
             """)

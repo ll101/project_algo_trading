@@ -18,6 +18,12 @@ from .db_schema import (
     create_quotes_table,
     create_trades_table,
 )
+from .db_ingestion import (
+    insert_bars_idempotent,
+    insert_quotes_idempotent,
+    insert_trades_idempotent,
+    get_or_create_stock,
+)
 
 __all__ = [
     'get_db_connection',
@@ -32,5 +38,9 @@ __all__ = [
     'create_bars_table',
     'create_quotes_table',
     'create_trades_table',
+    'insert_bars_idempotent',
+    'insert_quotes_idempotent',
+    'insert_trades_idempotent',
+    'get_or_create_stock',
 ]
 

@@ -7,9 +7,9 @@ import os
 from unittest.mock import patch, MagicMock
 import psycopg2
 
-# Add parent directory to path for imports
+# Add project root to path for imports
 import sys
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', '..'))
 
 from src.data.db_connection import (
     get_connection_pool,
