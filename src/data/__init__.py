@@ -23,6 +23,8 @@ from .db_ingestion import (
     insert_quotes_idempotent,
     insert_trades_idempotent,
     get_or_create_stock,
+    fetch_nasdaq100_tickers,
+    insert_nasdaq100_stocks,
 )
 
 __all__ = [
@@ -42,5 +44,7 @@ __all__ = [
     'insert_quotes_idempotent',
     'insert_trades_idempotent',
     'get_or_create_stock',
+    'fetch_nasdaq100_tickers',
+    'insert_nasdaq100_stocks',
 ]
 

@@ -1,6 +1,7 @@
 alpaca-py
 backtesting
 finnhub-python
+lxml
 lightweight-charts
 pandas
 polygon-api-client
