@@ -1,0 +1,24 @@
+{
+  "symbol": "AAPL",
+  "strategy_name": "MovingAverageCrossOverStrategy",
+  "parameters": {
+    "short_window": 5,
+    "long_window": 20
+  },
+  "metrics": {
+    "return_pct": 1.0188707179999912,
+    "buy_hold_return_pct": 10.454653653891919,
+    "sharpe_ratio": 0.22656269899347325,
+    "sortino_ratio": 0.48941508230192543,
+    "calmar_ratio": 0.6158381347564624,
+    "max_drawdown_pct": -9.93906918331926,
+    "volatility_pct": 27.01617633557189,
+    "total_trades": 17,
+    "win_rate_pct": 23.52941176470588,
+    "avg_trade_pct": -0.03095211407931897,
+    "profit_factor": 1.0088181859160152
+  },
+  "timestamp": "2026-01-07T19:28:14.565145",
+  "num_trades": 17,
+  "num_equity_points": 685
+}

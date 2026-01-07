@@ -1,0 +1,24 @@
+{
+  "symbol": "GOOGL",
+  "strategy_name": "MovingAverageCrossOverStrategy",
+  "parameters": {
+    "short_window": 5,
+    "long_window": 20
+  },
+  "metrics": {
+    "return_pct": 6.583249230000002,
+    "buy_hold_return_pct": 21.41995319901832,
+    "sharpe_ratio": 1.7032845695281082,
+    "sortino_ratio": 4.768158968231561,
+    "calmar_ratio": 9.876303958682211,
+    "max_drawdown_pct": -4.586890071781102,
+    "volatility_pct": 26.596566060903452,
+    "total_trades": 16,
+    "win_rate_pct": 43.75,
+    "avg_trade_pct": 0.3674214192864289,
+    "profit_factor": 1.859614833891365
+  },
+  "timestamp": "2026-01-07T19:28:14.603843",
+  "num_trades": 16,
+  "num_equity_points": 685
+}

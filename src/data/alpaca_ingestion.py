@@ -438,10 +438,10 @@ def main(
         
         try:
             # Ingest bars
-            bars_count = ingest_bars_for_symbol(
-                client, symbol, stock_id, start_dt, end_dt, TimeFrame(1, TimeFrameUnit.Minute)
-            )
-            total_bars += bars_count
+            # bars_count = ingest_bars_for_symbol(
+            #     client, symbol, stock_id, start_dt, end_dt, TimeFrame(1, TimeFrameUnit.Minute)
+            # )
+            # total_bars += bars_count
             
             # Ingest quotes
             # quotes_count = ingest_quotes_for_symbol(
@@ -449,11 +449,11 @@ def main(
             # )
             # total_quotes += quotes_count
             
-            # # Ingest trades
-            # trades_count = ingest_trades_for_symbol(
-            #     client, symbol, stock_id, start_dt, end_dt
-            # )
-            # total_trades += trades_count
+            # Ingest trades
+            trades_count = ingest_trades_for_symbol(
+                client, symbol, stock_id, start_dt, end_dt
+            )
+            total_trades += trades_count
             
         except Exception as e:
             logger.error(f"Error processing {symbol}: {e}")
@@ -464,9 +464,9 @@ def main(
     logger.info("Ingestion Summary")
     logger.info("=" * 60)
     logger.info(f"Stocks processed: {len(symbols)}")
-    logger.info(f"Total bars inserted: {total_bars}")
+    # logger.info(f"Total bars inserted: {total_bars}")
     # logger.info(f"Total quotes inserted: {total_quotes}")
-    # logger.info(f"Total trades inserted: {total_trades}")
+    logger.info(f"Total trades inserted: {total_trades}")
     logger.info("=" * 60)
 
 
