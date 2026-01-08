@@ -14,7 +14,7 @@ import pandas as pd
 import numpy as np
 from itertools import product
 
-from backtesting import Backtest
+from backtesting import Backtest, Multibacktest
 from backtesting.lib import plot_heatmaps
 
 # Add project root to path for imports when running as script
@@ -22,7 +22,7 @@ project_root = Path(__file__).resolve().parent.parent.parent
 if str(project_root) not in sys.path:
     sys.path.insert(0, str(project_root))
 
-from src.backtest.dataloader import load_bars_for_backtest
+from src.backtest.dataloader import load_bars_for_backtest, load_multiple_symbols
 from src.backtest.backtest_engine import run_backtest
 
 # Configure logging
@@ -32,7 +32,7 @@ logger = logging.getLogger(__name__)
 
 def grid_search(
     strategy_class: Type,
-    symbol: str,
+    symbol_or_symbols: Union[str, List[str]],
     start_date: Union[str, datetime],
     end_date: Union[str, datetime],
     param_grid: Dict[str, List[Any]],
@@ -81,12 +81,12 @@ def grid_search(
     
     # Load data once
     try:
-        df = load_bars_for_backtest(symbol, start_date, end_date, resample=resample)
+        df = load_bars_for_backtest(symbol_or_symbols, start_date, end_date, resample=resample)
         if df.empty:
-            logger.error(f"No data available for {symbol}")
+            logger.error(f"No data available for {symbol_or_symbols}")
             return {'error': 'No data available'}
     except Exception as e:
-        logger.error(f"Error loading data for {symbol}: {e}")
+        logger.error(f"Error loading data for {symbol_or_symbols}: {e}")
         return {'error': str(e)}
     
     # Create backtest instance

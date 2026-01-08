@@ -421,7 +421,7 @@ def _create_empty_bars_dataframe() -> pd.DataFrame:
 
 
 def load_bars_for_backtest(
-    symbol: str,
+    symbol_or_symbols: Union[str, List[str]],
     start_date: Union[str, datetime],
     end_date: Union[str, datetime],
     resample: Optional[str] = None
@@ -441,13 +441,12 @@ def load_bars_for_backtest(
     Returns:
         DataFrame compatible with backtesting library
     """
-    df = load_bars_from_db(symbol, start_date, end_date, resample=resample)
+    if isinstance(symbol_or_symbols, str):
+        df_dict = {symbol_or_symbols: load_bars_from_db(symbol_or_symbols, start_date, end_date, resample=resample)}
+    else:
+        df_dict = load_multiple_symbols(symbol_or_symbols, start_date, end_date, resample=resample)
     
-    # Ensure index name is set (backtesting library may expect this)
-    if df.index.name != 'time':
-        df.index.name = 'time'
-    
-    return df
+    return df_dict
 
 
 # Example usage and testing
@@ -472,25 +471,39 @@ if __name__ == "__main__":
                 end_date = date_range['end_date']
                 start_date = end_date - timedelta(days=30)
                 
-                df = load_bars_for_backtest(
+                df_dict = load_bars_for_backtest(
                     test_symbol,
                     start_date,
                     end_date
                 )
+
+                for symbol, df in df_dict.items():
+                    print(f"\nLoaded {len(df)} bars for {symbol}")
+                    print(f"Date range: {df.index.min()} to {df.index.max()}")
+                    print(f"\nFirst few rows:")
+                    print(df.head())
+                    
+                    # Validate data quality
+                    validation = validate_data_quality(df, symbol, max_gap_hours=72)
+                    print(f"\nData quality validation:")
+                    print(f"Valid: {validation['is_valid']}")
+                    print(f"Warnings: {len(validation['warnings'])}")
+                    if validation['warnings']:
+                        for warning in validation['warnings']:
+                            print(f"  - {warning}")
+                    print(f"\nLoaded {len(df)} bars")
+                    print(f"Date range: {df.index.min()} to {df.index.max()}")
+                    print(f"\nFirst few rows:")
+                    print(df.head())
                 
-                print(f"\nLoaded {len(df)} bars")
-                print(f"Date range: {df.index.min()} to {df.index.max()}")
-                print(f"\nFirst few rows:")
-                print(df.head())
-                
-                # Validate data quality
-                validation = validate_data_quality(df, test_symbol, max_gap_hours=72)
-                print(f"\nData quality validation:")
-                print(f"Valid: {validation['is_valid']}")
-                print(f"Warnings: {len(validation['warnings'])}")
-                if validation['warnings']:
-                    for warning in validation['warnings']:
-                        print(f"  - {warning}")
+                    # Validate data quality
+                    validation = validate_data_quality(df, test_symbol, max_gap_hours=72)
+                    print(f"\nData quality validation:")
+                    print(f"Valid: {validation['is_valid']}")
+                    print(f"Warnings: {len(validation['warnings'])}")
+                    if validation['warnings']:
+                        for warning in validation['warnings']:
+                            print(f"  - {warning}")
         
     except Exception as e:
         logger.error(f"Error in example usage: {e}")
