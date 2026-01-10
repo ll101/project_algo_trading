@@ -3,6 +3,7 @@ backtesting
 finnhub-python
 lxml
 lightweight-charts
+numpy
 pandas
 polygon-api-client
 psycopg2-binary
@@ -16,3 +17,4 @@ ta-lib
 talipp
 websocket-client
 pytest
+jupyter
