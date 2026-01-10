@@ -14,13 +14,15 @@ from functools import lru_cache
 
 import pandas as pd
 from dotenv import load_dotenv
+from sqlalchemy import create_engine, text
+from sqlalchemy.engine import Engine
 
 # Add project root to path for imports when running as script
 project_root = Path(__file__).resolve().parent.parent.parent
 if str(project_root) not in sys.path:
     sys.path.insert(0, str(project_root))
 
-from src.data.db_connection import get_db_connection
+from src.data.db_connection import get_db_connection, DB_CONFIG
 
 # Load environment variables
 load_dotenv()
@@ -28,6 +30,30 @@ load_dotenv()
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+
+# SQLAlchemy engine (lazy initialization)
+_sqlalchemy_engine: Optional[Engine] = None
+
+
+def get_sqlalchemy_engine() -> Engine:
+    """
+    Get or create SQLAlchemy engine for pandas compatibility.
+    
+    Returns:
+        SQLAlchemy Engine instance
+    """
+    global _sqlalchemy_engine
+    
+    if _sqlalchemy_engine is None:
+        # Create connection string for SQLAlchemy
+        connection_string = (
+            f"postgresql://{DB_CONFIG['user']}:{DB_CONFIG['password']}"
+            f"@{DB_CONFIG['host']}:{DB_CONFIG['port']}/{DB_CONFIG['database']}"
+        )
+        _sqlalchemy_engine = create_engine(connection_string, pool_pre_ping=True)
+        logger.info("SQLAlchemy engine created successfully")
+    
+    return _sqlalchemy_engine
 
 
 def load_bars_from_db(
@@ -85,20 +111,20 @@ def load_bars_from_db(
             b.volume
         FROM trading.bars b
         JOIN trading.stock s ON b.stock_id = s.id
-        WHERE s.symbol = %s
-        AND b.time >= %s
-        AND b.time <= %s
+        WHERE s.symbol = :symbol
+        AND b.time >= :start_date
+        AND b.time <= :end_date
         ORDER BY b.time ASC
     """
     
     try:
-        with get_db_connection() as conn:
-            df = pd.read_sql_query(
-                query,
-                conn,
-                params=(symbol, start_date, end_date),
-                parse_dates=['time']
-            )
+        engine = get_sqlalchemy_engine()
+        df = pd.read_sql_query(
+            text(query),
+            engine,
+            params={'symbol': symbol, 'start_date': start_date, 'end_date': end_date},
+            parse_dates=['time']
+        )
         
         if df.empty:
             logger.warning(f"No data found for {symbol} in date range {start_date} to {end_date}")
@@ -208,6 +234,47 @@ def get_available_symbols() -> List[str]:
         
     except Exception as e:
         logger.error(f"Error fetching available symbols: {e}")
+        raise
+
+
+def get_nasdaq100_symbols(limit: Optional[int] = None) -> List[str]:
+    """
+    Get list of Nasdaq-100 symbols from the database.
+    
+    Args:
+        limit: Optional limit on number of symbols to return
+    
+    Returns:
+        List of Nasdaq-100 stock symbols (sorted alphabetically)
+    """
+    query = """
+        SELECT DISTINCT s.symbol
+        FROM trading.stock s
+        WHERE EXISTS (
+            SELECT 1 FROM trading.bars b
+            WHERE b.stock_id = s.id
+        )
+        ORDER BY s.symbol
+    """
+    
+    try:
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute(query)
+            symbols = [row[0] for row in cursor.fetchall()]
+            cursor.close()
+        
+        # Filter to common Nasdaq-100 symbols (if you want to be more specific,
+        # you could add a flag in the stock table or check against a known list)
+        # For now, just return all available symbols
+        if limit:
+            symbols = symbols[:limit]
+        
+        logger.info(f"Found {len(symbols)} Nasdaq-100 symbols with data")
+        return symbols
+        
+    except Exception as e:
+        logger.error(f"Error fetching Nasdaq-100 symbols: {e}")
         raise
 
 
