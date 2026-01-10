@@ -27,34 +27,39 @@ from src.backtest.dataloader import (
 class TestDataLoader(unittest.TestCase):
     """Test cases for dataloader functionality."""
     
-    @patch('src.backtest.dataloader.get_db_connection')
-    def test_load_bars_from_db(self, mock_get_conn):
+    @patch('src.backtest.dataloader.get_sqlalchemy_engine')
+    def test_load_bars_from_db(self, mock_get_engine):
         """Test loading bars from database."""
-        # Mock database connection and cursor
-        mock_cursor = MagicMock()
-        mock_cursor.fetchall.return_value = [
-            ('2025-01-01 10:00:00', 100.0, 101.0, 99.0, 100.5, 1000),
-            ('2025-01-01 10:01:00', 100.5, 101.5, 100.0, 101.0, 1100)
-        ]
-        mock_cursor.description = [
-            ('time',), ('open',), ('high',), ('low',), ('close',), ('volume',)
-        ]
+        # Create mock DataFrame to return from pd.read_sql_query
+        mock_df = pd.DataFrame({
+            'time': pd.to_datetime(['2025-01-01 10:00:00', '2025-01-01 10:01:00']),
+            'open': [100.0, 100.5],
+            'high': [101.0, 101.5],
+            'low': [99.0, 100.0],
+            'close': [100.5, 101.0],
+            'volume': [1000, 1100]
+        })
         
-        mock_conn = MagicMock()
-        mock_conn.cursor.return_value.__enter__.return_value = mock_cursor
-        mock_get_conn.return_value.__enter__.return_value = mock_conn
+        # Mock SQLAlchemy engine
+        mock_engine = MagicMock()
+        mock_get_engine.return_value = mock_engine
         
-        # Test loading bars
-        df = load_bars_from_db(
-            symbol='AAPL',
-            start_date='2025-01-01',
-            end_date='2025-01-02'
-        )
+        # Mock pd.read_sql_query to return our mock DataFrame
+        with patch('src.backtest.dataloader.pd.read_sql_query', return_value=mock_df):
+            # Test loading bars
+            df = load_bars_from_db(
+                symbol='AAPL',
+                start_date='2025-01-01',
+                end_date='2025-01-02'
+            )
         
         self.assertIsInstance(df, pd.DataFrame)
         self.assertGreater(len(df), 0)
         self.assertIn('Open', df.columns)
         self.assertIn('Close', df.columns)
+        self.assertIn('High', df.columns)
+        self.assertIn('Low', df.columns)
+        self.assertIn('Volume', df.columns)
     
     @patch('src.backtest.dataloader.load_bars_from_db')
     def test_load_multiple_symbols(self, mock_load_bars):
@@ -98,17 +103,24 @@ class TestDataLoader(unittest.TestCase):
     @patch('src.backtest.dataloader.get_db_connection')
     def test_get_symbol_data_range(self, mock_get_conn):
         """Test getting data range for a symbol."""
+        from datetime import datetime
         mock_cursor = MagicMock()
-        mock_cursor.fetchone.return_value = ('2025-01-01', '2025-01-31')
+        mock_cursor.fetchone.return_value = (
+            datetime(2025, 1, 1),
+            datetime(2025, 1, 31)
+        )
         
         mock_conn = MagicMock()
         mock_conn.cursor.return_value.__enter__.return_value = mock_cursor
         mock_get_conn.return_value.__enter__.return_value = mock_conn
         
-        start_date, end_date = get_symbol_data_range('AAPL')
+        result = get_symbol_data_range('AAPL')
         
-        self.assertIsNotNone(start_date)
-        self.assertIsNotNone(end_date)
+        self.assertIsInstance(result, dict)
+        self.assertIn('start_date', result)
+        self.assertIn('end_date', result)
+        self.assertIsNotNone(result['start_date'])
+        self.assertIsNotNone(result['end_date'])
     
     def test_validate_data_quality(self):
         """Test data quality validation."""
