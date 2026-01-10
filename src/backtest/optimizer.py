@@ -8,13 +8,16 @@ import os
 import sys
 from pathlib import Path
 from typing import List, Dict, Optional, Union, Type, Any, Callable
-from datetime import datetime
+from datetime import datetime, timedelta
 import logging
 import pandas as pd
 import numpy as np
 from itertools import product
+from pprint import pprint
+import csv
+import json
 
-from backtesting import Backtest, Multibacktest
+from backtesting import Backtest
 from backtesting.lib import plot_heatmaps
 
 # Add project root to path for imports when running as script
@@ -32,7 +35,7 @@ logger = logging.getLogger(__name__)
 
 def grid_search(
     strategy_class: Type,
-    symbol_or_symbols: Union[str, List[str]],
+    symbol: str,
     start_date: Union[str, datetime],
     end_date: Union[str, datetime],
     param_grid: Dict[str, List[Any]],
@@ -79,14 +82,15 @@ def grid_search(
     
     logger.info(f"Testing {len(combinations)} parameter combinations...")
     
-    # Load data once
+    #Load data once
     try:
-        df = load_bars_for_backtest(symbol_or_symbols, start_date, end_date, resample=resample)
+        df_dict = load_bars_for_backtest(symbol, start_date, end_date, resample=resample)
+        df = df_dict[symbol]
         if df.empty:
-            logger.error(f"No data available for {symbol_or_symbols}")
+            logger.error(f"No data available for {symbol}")
             return {'error': 'No data available'}
     except Exception as e:
-        logger.error(f"Error loading data for {symbol_or_symbols}: {e}")
+        logger.error(f"Error loading data for {symbol}: {e}")
         return {'error': str(e)}
     
     # Create backtest instance
@@ -173,7 +177,8 @@ def random_search(
     
     # Load data once
     try:
-        df = load_bars_for_backtest(symbol, start_date, end_date, resample=resample)
+        df_dict = load_bars_for_backtest(symbol, start_date, end_date, resample=resample)
+        df = df_dict[symbol]
         if df.empty:
             logger.error(f"No data available for {symbol}")
             return {'error': 'No data available'}
@@ -229,83 +234,166 @@ def random_search(
         return {'error': str(e)}
 
 
-def optimize_multiple_symbols(
-    strategy_class: Type,
-    symbols: List[str],
-    start_date: Union[str, datetime],
-    end_date: Union[str, datetime],
-    param_grid: Dict[str, List[Any]],
-    cash: float = 100000,
-    commission: float = 0.002,
-    exclusive_orders: bool = True,
-    resample: Optional[str] = None,
-    maximize: Union[str, Callable] = 'Return [%]',
-    method: str = 'grid'
-) -> Dict[str, Dict[str, Any]]:
-    """
-    Optimize strategy parameters across multiple symbols.
+# def cross_validation(
+#     strategy_class: Type,
+#     symbols: List[str],
+#     start_date: Union[str, datetime],
+#     end_date: Union[str, datetime],
+#     param_grid: Dict[str, List[Any]],
+#     time_k_folds: int = 1,
+#     time_k_method: str = 'rolling',
+#     cash: float = 100000,
+#     commission: float = 0.002,
+#     exclusive_orders: bool = True,
+#     resample: Optional[str] = None,
+#     maximize: Union[str, Callable] = 'Return [%]',
+#     method: str = 'grid'
+# ) -> Dict[str, Dict[str, Any]]:
+#     """
+#     Optimize strategy parameters across multiple symbols and time-series.
     
-    Args:
-        strategy_class: Strategy class to optimize
-        symbols: List of stock symbols
-        start_date: Start date for backtest
-        end_date: End date for backtest
-        param_grid: Parameter grid for optimization
-        cash: Starting cash (default: 100000)
-        commission: Commission rate (default: 0.002)
-        exclusive_orders: Whether to use exclusive orders (default: True)
-        resample: Optional resampling rule
-        maximize: Metric to maximize
-        method: Optimization method - 'grid' or 'random' (default: 'grid')
+#     Args:
+#         strategy_class: Strategy class to optimize
+#         symbols: List of stock symbols
+#         start_date: Start date for backtest
+#         end_date: End date for backtest
+#         param_grid: Parameter grid for optimization
+#         cash: Starting cash (default: 100000)
+#         commission: Commission rate (default: 0.002)
+#         exclusive_orders: Whether to use exclusive orders (default: True)
+#         resample: Optional resampling rule
+#         maximize: Metric to maximize
+#         method: Optimization method - 'grid' or 'random' (default: 'grid')
     
-    Returns:
-        Dictionary mapping symbol to optimization results
-    """
-    logger.info(f"Optimizing {strategy_class.__name__} for {len(symbols)} symbols")
+#     Returns:
+#         Dictionary mapping symbol to optimization results
+#     """
+#     if time_k_folds < 1:
+#         raise ValueError("time_k_folds must be an integer greater than or equal to 1")
     
-    results = {}
+#     if time_k_method not in ['rolling', 'expanding']:
+#         raise ValueError("time_k_method must be 'rolling' or 'expanding'")
     
-    for i, symbol in enumerate(symbols, 1):
-        logger.info(f"[{i}/{len(symbols)}] Optimizing {symbol}...")
-        
-        if method == 'grid':
-            result = grid_search(
-                strategy_class=strategy_class,
-                symbol=symbol,
-                start_date=start_date,
-                end_date=end_date,
-                param_grid=param_grid,
-                cash=cash,
-                commission=commission,
-                exclusive_orders=exclusive_orders,
-                resample=resample,
-                maximize=maximize
-            )
-        elif method == 'random':
-            result = random_search(
-                strategy_class=strategy_class,
-                symbol=symbol,
-                start_date=start_date,
-                end_date=end_date,
-                param_distributions=param_grid,
-                cash=cash,
-                commission=commission,
-                exclusive_orders=exclusive_orders,
-                resample=resample,
-                maximize=maximize
-            )
-        else:
-            logger.error(f"Unknown optimization method: {method}")
-            result = {'error': f'Unknown method: {method}'}
-        
-        results[symbol] = result
+#     logger.info(f"Optimizing {strategy_class.__name__} for {len(symbols)} symbols.")
+#     logger.info(f'Time series start date: {start_date}, end date: {end_date}')
+#     logger.info(f'Method: {method}, Time-k folds: {time_k_folds}, Time-k method: {time_k_method}')
     
-    # Summary
-    successful = sum(1 for r in results.values() if 'error' not in r)
-    logger.info(f"Optimization completed for {successful}/{len(symbols)} symbols")
-    
-    return results
 
+#     results = {}
+  
+#     time_fold_size = timedelta(days=int((end_date - start_date).days / time_k_folds))
+
+#     print(f'days in each fold: {time_fold_size}')
+    
+#     for i, symbol in enumerate(symbols, 1):
+#         logger.info(f"[{i}/{len(symbols)}] Optimizing {symbol}...")
+
+#         for fold in range(time_k_folds):
+#             if time_k_method == 'rolling':
+#                 start_date_f = start_date + timedelta(days=fold*time_fold_size)
+#                 end_date_f = start_date_f + timedelta(days=time_fold_size)
+#             elif time_k_method == 'expanding':
+#                 start_date_f = start_date
+#                 end_date_f = start_date + timedelta(days=fold*time_fold_size)
+#             else:
+#                 raise ValueError(f"Invalid time_k_method: {time_k_method}")
+        
+#             if method == 'grid':
+#                 result = grid_search(
+#                     strategy_class=strategy_class,
+#                     symbol=symbol,
+#                     start_date=start_date_f,
+#                     end_date=end_date_f,
+#                     param_grid=param_grid,
+#                     cash=cash,
+#                     commission=commission,
+#                     exclusive_orders=exclusive_orders,
+#                     resample=resample,
+#                     maximize=maximize
+#                 )
+#             elif method == 'random':
+#                 result = random_search(
+#                     strategy_class=strategy_class,
+#                     symbol=symbol,
+#                     start_date=start_date_f,
+#                     end_date=end_date_f,
+#                     param_distributions=param_grid,
+#                     cash=cash,
+#                     commission=commission,
+#                     exclusive_orders=exclusive_orders,
+#                     resample=resample,
+#                     maximize=maximize
+#                 )
+#             else:
+#                 logger.error(f"Unknown optimization method: {method}")
+#                 result = {'error': f'Unknown method: {method}'}
+            
+#             fold_count = f'fold_{fold+1}'
+
+#             results[symbol][fold_count] = result
+    
+#     # Summary
+#     successful = sum(1 for r in results.values() if 'error' not in r)
+#     logger.info(f"Optimization completed for {successful}/{len(symbols)} symbols")
+#     experiment_time = datetime.now().strftime("%Y%m%d_%H%M%S")
+
+#     # save experiment metadata to csv
+#     experiment_metadata = {
+#         'experiment_time': experiment_time,
+#         'strategy_name': strategy_class.__name__,
+#         'method': method,
+#         'symbols': symbols,
+#         'time_k_folds': time_k_folds,
+#         'time_k_method': time_k_method,
+#         'start_date': start_date,
+#         'end_date': end_date
+#     }
+#     # check if results/cross_backtesting.csv exists, if not create the file and write the experiment metadata
+#     if not os.path.exists('src/results/cross_backtesting.csv'):
+#         with open('src/results/cross_backtesting.csv', 'w') as f:
+#             writer = csv.writer(f)
+#             writer.writerow(experiment_metadata.keys())
+#             writer.writerow(experiment_metadata.values())
+#     else:
+#         with open('src/results/cross_backtesting.csv', 'a') as f:
+#             writer = csv.writer(f)
+#             writer.writerow(experiment_metadata.values())
+
+#     # save results to json, organised by strategy folder
+#     # check if the strategy folder exists under src/results/backtest, if not create the folder
+#     if not os.path.exists(f'src/results/backtest/{strategy_class.__name__}'):
+#         os.makedirs(f'src/results/backtest/{strategy_class.__name__}')
+#     # then dump files to the strategy subfolder
+#     with open(f'src/results/backtest/{strategy_class.__name__}/_{method}_{experiment_time}.json', 'w') as f:
+#         json.dump(results, f)
+    
+#     return results
+
+
+# def select_best_parameters(strategy_results_json_path: str, maximize: Union[str, Callable] = 'Return [%]'):
+#     # check if the file exists
+#     if not os.path.exists(strategy_results_json_path):
+#         raise FileNotFoundError(f"File not found: {strategy_results_json_path}")
+#     # then load the file
+#     with open(strategy_results_json_path, 'r') as f:
+#         results = json.load(f)
+#     # select the best params based on the highest average of selected maximize metric in an experiment across all trials (each symbol and fold)
+#     # each json file is an experiment with more than 1 symbol and fold
+#     # each trial is the results from grid_search or random_search under the json[symbol][fold]
+#     # after loading the json file, compute the highest average of the selected maximize metric across all trials
+#     # return the best parameters and the highest average of the selected maximize metric
+
+#     best_params = {}
+
+#     average_maximize_metric = 0
+
+#     num_of_trials = 0
+#     for symbol, folds in results.items():
+#         num_of_trials += len(folds)
+#         for fold, trial in folds.items():
+#             average_maximize_metric += trial['best_stats'][maximize]
+#     average_maximize_metric /= num_of_trials
+#     return best_params, average_maximize_metric
 
 # Example usage
 if __name__ == "__main__":
@@ -326,7 +414,5 @@ if __name__ == "__main__":
         return_heatmap=True
     )
     
-    if 'error' not in result:
-        print(f"\nBest parameters: {result['best_params']}")
-        print(f"Best return: {result['best_stats']['Return [%]']:.2f}%")
+    pprint(result)
 

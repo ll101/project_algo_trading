@@ -136,7 +136,6 @@ def load_multiple_symbols(
     symbols: List[str],
     start_date: Union[str, datetime],
     end_date: Union[str, datetime],
-    timeframe: str = '1min',
     resample: Optional[str] = None
 ) -> Dict[str, pd.DataFrame]:
     """
@@ -164,7 +163,7 @@ def load_multiple_symbols(
     result = {}
     for symbol in symbols:
         try:
-            df = load_bars_from_db(symbol, start_date, end_date, timeframe, resample)
+            df = load_bars_from_db(symbol, start_date, end_date, resample)
             result[symbol] = df
         except Exception as e:
             logger.warning(f"Failed to load data for {symbol}: {e}")

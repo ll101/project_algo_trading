@@ -20,8 +20,7 @@ from src.backtest.backtest_engine import (
 
 from src.backtest.optimizer import (
     grid_search,
-    random_search,
-    optimize_multiple_symbols,
+    random_search
 )
 
 from src.backtest.results import (
