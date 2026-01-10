@@ -222,55 +222,55 @@ def run_backtest_multiple_symbols(
     return results
 
 
-def run_backtest_all_symbols(
-    strategy_class: Type,
-    start_date: Union[str, datetime],
-    end_date: Union[str, datetime],
-    cash: float = 100000,
-    commission: float = 0.002,
-    exclusive_orders: bool = True,
-    resample: Optional[str] = None,
-    strategy_params: Optional[Dict[str, Any]] = None,
-    max_symbols: Optional[int] = None
-) -> Dict[str, Dict[str, Any]]:
-    """
-    Run backtest for all available symbols in database.
+# def run_backtest_all_symbols(
+#     strategy_class: Type,
+#     start_date: Union[str, datetime],
+#     end_date: Union[str, datetime],
+#     cash: float = 100000,
+#     commission: float = 0.002,
+#     exclusive_orders: bool = True,
+#     resample: Optional[str] = None,
+#     strategy_params: Optional[Dict[str, Any]] = None,
+#     max_symbols: Optional[int] = None
+# ) -> Dict[str, Dict[str, Any]]:
+#     """
+#     Run backtest for all available symbols in database.
     
-    Args:
-        strategy_class: Strategy class to test
-        start_date: Start date for backtest
-        end_date: End date for backtest
-        cash: Starting cash per symbol (default: 100000)
-        commission: Commission rate (default: 0.002)
-        exclusive_orders: Whether to use exclusive orders (default: True)
-        resample: Optional resampling rule
-        strategy_params: Optional dictionary of strategy parameters
-        max_symbols: Optional limit on number of symbols to test
+#     Args:
+#         strategy_class: Strategy class to test
+#         start_date: Start date for backtest
+#         end_date: End date for backtest
+#         cash: Starting cash per symbol (default: 100000)
+#         commission: Commission rate (default: 0.002)
+#         exclusive_orders: Whether to use exclusive orders (default: True)
+#         resample: Optional resampling rule
+#         strategy_params: Optional dictionary of strategy parameters
+#         max_symbols: Optional limit on number of symbols to test
     
-    Returns:
-        Dictionary mapping symbol to backtest results
-    """
-    # Get all available symbols
-    symbols = get_available_symbols()
+#     Returns:
+#         Dictionary mapping symbol to backtest results
+#     """
+#     Get all available symbols
+#     symbols = get_available_symbols()
     
-    if max_symbols:
-        symbols = symbols[:max_symbols]
-        logger.info(f"Limiting to first {max_symbols} symbols")
+#     if max_symbols:
+#         symbols = symbols[:max_symbols]
+#         logger.info(f"Limiting to first {max_symbols} symbols")
     
-    logger.info(f"Running backtests for all {len(symbols)} available symbols")
+#     logger.info(f"Running backtests for all {len(symbols)} available symbols")
     
-    return run_backtest_multiple_symbols(
-        strategy_class=strategy_class,
-        symbols=symbols,
-        start_date=start_date,
-        end_date=end_date,
-        cash=cash,
-        commission=commission,
-        exclusive_orders=exclusive_orders,
-        resample=resample,
-        strategy_params=strategy_params,
-        plot=False  # Don't plot for all symbols
-    )
+#     return run_backtest_multiple_symbols(
+#         strategy_class=strategy_class,
+#         symbols=symbols,
+#         start_date=start_date,
+#         end_date=end_date,
+#         cash=cash,
+#         commission=commission,
+#         exclusive_orders=exclusive_orders,
+#         resample=resample,
+#         strategy_params=strategy_params,
+#         plot=False  # Don't plot for all symbols
+#     )
 
 
 # Example usage

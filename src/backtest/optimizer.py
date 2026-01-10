@@ -16,6 +16,8 @@ from itertools import product
 from pprint import pprint
 import csv
 import json
+import pickle
+
 
 from backtesting import Backtest
 from backtesting.lib import plot_heatmaps
@@ -117,6 +119,8 @@ def grid_search(
             'best_params': best_params,
             'best_stats': stats,
             'symbol': symbol,
+            'start_date': start_date,
+            'end_date': end_date,
             'strategy_name': strategy_class.__name__,
             'param_grid': param_grid,
             'total_combinations': len(combinations)
@@ -124,11 +128,11 @@ def grid_search(
         
         if return_heatmap and heatmap is not None:
             result['heatmap'] = heatmap
-        
+
         return result
-        
+
     except Exception as e:
-        logger.error(f"Error during optimization: {e}")
+        logger.error(f"Error during grid search: {e}")
         import traceback
         traceback.print_exc()
         return {'error': str(e)}
@@ -209,6 +213,7 @@ def random_search(
             random_state=random_state,
             **param_ranges
         )
+
         
         # Extract best parameters
         best_params = {}
@@ -233,6 +238,104 @@ def random_search(
         traceback.print_exc()
         return {'error': str(e)}
 
+
+def save_result_to_file(result: Dict[str, Any], strategy_name: str, symbol: str, method: str, start_date: Union[str, datetime], end_date: Union[str, datetime]):
+    """
+    Save optimization result using pickle (preserves all objects) and JSON summary (for quick inspection).
+    Also saves heatmap as CSV if present for easy analysis.
+    
+    Saves three files:
+    1. .pkl - Full result with pandas objects preserved (use load_result_from_file to load)
+    2. .json - Human-readable summary with key metrics
+    3. .csv - Heatmap if present (easy to analyze in Excel/Python)
+    
+    Args:
+        result: Optimization result dictionary (kept as-is)
+        strategy_name: Name of the strategy class
+        method: Optimization method ('grid' or 'random')
+        start_date: Start date (string or datetime)
+        end_date: End date (string or datetime)
+    Returns:
+        Dictionary with paths to saved files
+    """
+    # Convert dates to strings for filename
+    start_date_str = start_date.strftime("%Y%m%d") if isinstance(start_date, datetime) else str(start_date).replace("-", "")
+    end_date_str = end_date.strftime("%Y%m%d") if isinstance(end_date, datetime) else str(end_date).replace("-", "")
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    
+    # Create directory structure
+    results_dir = project_root / 'src' / 'results' / 'optimisation' / strategy_name
+    results_dir.mkdir(parents=True, exist_ok=True)
+    
+    base_filename = f"{symbol}_{method}_{start_date_str}_{end_date_str}_{timestamp}"
+    
+    # 1. Save full result as pickle (preserves pandas objects exactly)
+    pkl_path = results_dir / f"{base_filename}.pkl"
+    with open(pkl_path, 'wb') as f:
+        pickle.dump(result, f)
+    
+    # 2. Save JSON summary for quick inspection
+    json_summary = {
+        'strategy_name': result.get('strategy_name', strategy_name),
+        'symbol': result.get('symbol', ''),
+        'method': method,
+        'start_date': str(start_date),
+        'end_date': str(end_date),
+        'best_params': result.get('best_params', {}),
+        'key_metrics': {}
+    }
+    
+    # Extract key metrics from best_stats (pandas Series)
+    if 'best_stats' in result and result['best_stats'] is not None:
+        stats = result['best_stats']
+        key_metrics = [
+            'Return [%]', 'Sharpe Ratio', 'Sortino Ratio', 'Calmar Ratio',
+            'Max. Drawdown [%]', 'Volatility (Ann.) [%]', '# Trades',
+            'Win Rate [%]', 'Avg. Trade [%]', 'Profit Factor'
+        ]
+        for metric in key_metrics:
+            if metric in stats:
+                try:
+                    json_summary['key_metrics'][metric] = float(stats[metric])
+                except (ValueError, TypeError):
+                    json_summary['key_metrics'][metric] = str(stats[metric])
+    
+    json_summary['total_combinations'] = result.get('total_combinations', result.get('n_iter', 'N/A'))
+    json_summary['has_heatmap'] = 'heatmap' in result and result['heatmap'] is not None
+    
+    json_path = results_dir / f"{base_filename}_summary.json"
+    with open(json_path, 'w') as f:
+        json.dump(json_summary, f, indent=2, default=str)
+    
+    # 3. Save heatmap as CSV if present (easy to analyze)
+    csv_path = None
+    if 'heatmap' in result and result['heatmap'] is not None:
+        csv_path = results_dir / f"{base_filename}_heatmap.csv"
+        result['heatmap'].to_csv(csv_path)
+    
+    return {
+        'pkl_path': str(pkl_path),
+        'json_summary_path': str(json_path),
+        'csv_heatmap_path': str(csv_path) if csv_path else None
+    }
+
+
+def load_result_from_file(filepath: str) -> Dict[str, Any]:
+    """
+    Load optimization result from pickle file.
+    Preserves all pandas objects (Series, DataFrame) exactly as saved.
+    
+    Args:
+        filepath: Path to .pkl file
+    
+    Returns:
+        Original result dictionary with all objects preserved
+    """
+    
+    with open(filepath, 'rb') as f:
+        result = pickle.load(f)
+    
+    return result
 
 # def cross_validation(
 #     strategy_class: Type,
@@ -398,21 +501,49 @@ def random_search(
 # Example usage
 if __name__ == "__main__":
     from src.strategy.strategies import MovingAverageCrossOverStrategy
+
+    strategy_class = MovingAverageCrossOverStrategy
+    symbol = "AAPL"
+    start_date = "2025-01-01"
+    end_date = "2025-04-30"
+    param_grid = {
+        'short_window': [5, 10, 20],
+        'long_window': [50, 100, 200],
+        'ma_type': ['sma', 'ema']
+    }
+    maximize = 'Sharpe Ratio'
+    method = 'grid'
+    return_heatmap = True
+    n_iter = 50
+    random_state = 42
+    resample = '1H'
     
     # Example: Grid search optimization
-    result = grid_search(
-        strategy_class=MovingAverageCrossOverStrategy,
-        symbol="AAPL",
-        start_date="2025-07-01",
-        end_date="2025-08-31",
-        param_grid={
-            'short_window': [5, 10, 20],
-            'long_window': [50, 100, 200],
-            'ma_type': ['sma', 'ema']
-        },
-        maximize='Return [%]',
-        return_heatmap=True
-    )
+    if method == 'grid':
+        result = grid_search(
+            strategy_class=strategy_class,
+            symbol=symbol,
+            start_date=start_date,
+            end_date=end_date,
+            param_grid=param_grid,
+            maximize=maximize,
+            resample=resample,
+            return_heatmap=return_heatmap
+        )
+    elif method == 'random':
+        result = random_search(
+            strategy_class=strategy_class,
+            symbol=symbol,
+            start_date=start_date,
+            end_date=end_date,
+            param_distributions=param_grid,
+            n_iter=n_iter,
+            random_state=random_state,
+            resample=resample
+        )
+    else:
+        raise ValueError(f"Invalid method: {method}")
+
+    save_result_to_file(result, strategy_class.__name__, symbol, method, start_date, end_date)
     
-    pprint(result)
 
