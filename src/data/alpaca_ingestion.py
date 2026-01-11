@@ -208,6 +208,7 @@ def ingest_bars_for_symbol(
     start_date: datetime,
     end_date: datetime,
     timeframe: TimeFrame = TimeFrame(1, TimeFrameUnit.Minute),
+    check_existing: bool = True,
 ) -> int:
     """
     Ingest bars data for a single symbol using DataFrame.
@@ -219,11 +220,32 @@ def ingest_bars_for_symbol(
         start_date: Start date for data retrieval
         end_date: End date for data retrieval
         timeframe: Timeframe for bars (default: 1 minute)
+        check_existing: If True, check existing data and skip if already complete
     
     Returns:
         Number of bars inserted
     """
+    from src.data.db_ingestion import (
+        should_skip_symbol,
+        get_effective_start_date
+    )
+    
     try:
+        # Check if we should skip this symbol
+        if check_existing:
+            if should_skip_symbol(symbol, end_date, table='bars'):
+                return 0
+            
+            # Get effective start date (from last existing timestamp if any)
+            effective_start = get_effective_start_date(symbol, start_date, table='bars')
+            
+            # If effective start is after end_date, nothing to ingest
+            if effective_start >= end_date:
+                logger.info(f"Symbol {symbol} already has complete bars data up to {end_date}")
+                return 0
+            
+            start_date = effective_start
+        
         logger.info(f"Fetching bars for {symbol} from {start_date.date()} to {end_date.date()}")
         
         request = StockBarsRequest(
@@ -261,7 +283,8 @@ def ingest_quotes_for_symbol(
     symbol: str,
     stock_id: int,
     start_date: datetime,
-    end_date: datetime
+    end_date: datetime,
+    check_existing: bool = True
 ) -> int:
     """
     Ingest quotes data for a single symbol using DataFrame.
@@ -272,11 +295,31 @@ def ingest_quotes_for_symbol(
         stock_id: Stock ID from database
         start_date: Start date for data retrieval
         end_date: End date for data retrieval
+        check_existing: If True, check existing data and skip if already complete
     
     Returns:
         Number of quotes inserted
     """
+    from src.data.db_ingestion import (
+        should_skip_symbol,
+        get_effective_start_date
+    )
+    
     try:
+        # Check if we should skip this symbol
+        if check_existing:
+            if should_skip_symbol(symbol, end_date, table='quotes'):
+                return 0
+            
+            # Get effective start date
+            effective_start = get_effective_start_date(symbol, start_date, table='quotes')
+            
+            if effective_start >= end_date:
+                logger.info(f"Symbol {symbol} already has complete quotes data up to {end_date}")
+                return 0
+            
+            start_date = effective_start
+        
         logger.info(f"Fetching quotes for {symbol} from {start_date.date()} to {end_date.date()}")
         
         request = StockQuotesRequest(
@@ -313,7 +356,8 @@ def ingest_trades_for_symbol(
     symbol: str,
     stock_id: int,
     start_date: datetime,
-    end_date: datetime
+    end_date: datetime,
+    check_existing: bool = True
 ) -> int:
     """
     Ingest trades data for a single symbol using DataFrame.
@@ -324,11 +368,31 @@ def ingest_trades_for_symbol(
         stock_id: Stock ID from database
         start_date: Start date for data retrieval
         end_date: End date for data retrieval
+        check_existing: If True, check existing data and skip if already complete
     
     Returns:
         Number of trades inserted
     """
+    from src.data.db_ingestion import (
+        should_skip_symbol,
+        get_effective_start_date
+    )
+    
     try:
+        # Check if we should skip this symbol
+        if check_existing:
+            if should_skip_symbol(symbol, end_date, table='trades'):
+                return 0
+            
+            # Get effective start date
+            effective_start = get_effective_start_date(symbol, start_date, table='trades')
+            
+            if effective_start >= end_date:
+                logger.info(f"Symbol {symbol} already has complete trades data up to {end_date}")
+                return 0
+            
+            start_date = effective_start
+        
         logger.info(f"Fetching trades for {symbol} from {start_date.date()} to {end_date.date()}")
         
         request = StockTradesRequest(
@@ -423,10 +487,12 @@ def main(
     # Step 5: Ingest market data for each symbol
     logger.info(f"\nStep 3: Ingesting market data from {start_date} to {end_date}...")
     logger.info(f"Timeframe: 1 minute")
+    logger.info("Note: Will check existing data and skip symbols that are already up-to-date")
     
     total_bars = 0
     total_quotes = 0
     total_trades = 0
+    skipped_symbols = 0
     
     for i, symbol in enumerate(symbols, 1):
         stock_id = stock_ids.get(symbol)
@@ -437,11 +503,15 @@ def main(
         logger.info(f"\n[{i}/{len(symbols)}] Processing {symbol} (ID: {stock_id})...")
         
         try:
-            # Ingest bars
+            # Ingest bars (with existing data check)
             bars_count = ingest_bars_for_symbol(
-                client, symbol, stock_id, start_dt, end_dt, TimeFrame(1, TimeFrameUnit.Minute)
+                client, symbol, stock_id, start_dt, end_dt, 
+                TimeFrame(1, TimeFrameUnit.Minute), check_existing=True
             )
             total_bars += bars_count
+            
+            if bars_count == 0:
+                skipped_symbols += 1
             
             # Ingest quotes
             # quotes_count = ingest_quotes_for_symbol(
@@ -464,6 +534,7 @@ def main(
     logger.info("Ingestion Summary")
     logger.info("=" * 60)
     logger.info(f"Stocks processed: {len(symbols)}")
+    logger.info(f"Symbols skipped (already up-to-date): {skipped_symbols}")
     logger.info(f"Total bars inserted: {total_bars}")
     # logger.info(f"Total quotes inserted: {total_quotes}")
     # logger.info(f"Total trades inserted: {total_trades}")
