@@ -237,6 +237,165 @@ def get_or_create_stock(symbol: str, company_name: str) -> int:
         raise
 
 
+def get_last_timestamp_for_symbol(
+    symbol: str,
+    table: str = 'bars'
+) -> Optional[datetime]:
+    """
+    Get the last available timestamp for a symbol in a specific table.
+    
+    Args:
+        symbol: Stock symbol
+        table: Table name ('bars', 'quotes', or 'trades')
+    
+    Returns:
+        Last timestamp if data exists, None otherwise
+    """
+    if table not in ['bars', 'quotes', 'trades']:
+        raise ValueError(f"Invalid table: {table}. Must be 'bars', 'quotes', or 'trades'")
+    
+    query = f"""
+        SELECT MAX(b.time) as last_time
+        FROM trading.{table} b
+        JOIN trading.stock s ON b.stock_id = s.id
+        WHERE s.symbol = %s
+    """
+    
+    try:
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute(query, (symbol,))
+            result = cursor.fetchone()
+            
+            if result and result[0]:
+                return result[0]
+            return None
+    except Exception as e:
+        logger.error(f"Error getting last timestamp for {symbol} in {table}: {e}")
+        raise
+
+
+def get_data_range_for_symbol(
+    symbol: str,
+    table: str = 'bars'
+) -> Dict[str, Optional[datetime]]:
+    """
+    Get the data range (min and max timestamps) for a symbol in a specific table.
+    
+    Args:
+        symbol: Stock symbol
+        table: Table name ('bars', 'quotes', or 'trades')
+    
+    Returns:
+        Dictionary with 'start_date' and 'end_date' keys
+    """
+    if table not in ['bars', 'quotes', 'trades']:
+        raise ValueError(f"Invalid table: {table}. Must be 'bars', 'quotes', or 'trades'")
+    
+    query = f"""
+        SELECT MIN(b.time) as start_time, MAX(b.time) as end_time
+        FROM trading.{table} b
+        JOIN trading.stock s ON b.stock_id = s.id
+        WHERE s.symbol = %s
+    """
+    
+    try:
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute(query, (symbol,))
+            result = cursor.fetchone()
+            
+            if result and result[0] and result[1]:
+                return {
+                    'start_date': result[0],
+                    'end_date': result[1]
+                }
+            return {'start_date': None, 'end_date': None}
+    except Exception as e:
+        logger.error(f"Error getting data range for {symbol} in {table}: {e}")
+        raise
+
+
+def should_skip_symbol(
+    symbol: str,
+    requested_end_date: datetime,
+    table: str = 'bars',
+    tolerance_minutes: int = 60
+) -> bool:
+    """
+    Check if a symbol should be skipped because it already has data up to (or close to) the requested end_date.
+    
+    Args:
+        symbol: Stock symbol
+        requested_end_date: The end date requested for ingestion
+        table: Table name ('bars', 'quotes', or 'trades')
+        tolerance_minutes: Tolerance in minutes - if last data is within this many minutes of end_date, skip
+    
+    Returns:
+        True if symbol should be skipped, False otherwise
+    """
+    last_timestamp = get_last_timestamp_for_symbol(symbol, table)
+    
+    if last_timestamp is None:
+        return False  # No data exists, don't skip
+    
+    # Check if last timestamp is at or after the requested end_date (within tolerance)
+    time_diff = (requested_end_date - last_timestamp).total_seconds() / 60
+    
+    if time_diff <= tolerance_minutes:
+        logger.info(
+            f"Symbol {symbol} already has {table} data up to {last_timestamp}. "
+            f"Requested end_date: {requested_end_date}. Skipping."
+        )
+        return True
+    
+    return False
+
+
+def get_effective_start_date(
+    symbol: str,
+    requested_start_date: datetime,
+    table: str = 'bars'
+) -> datetime:
+    """
+    Get the effective start date for ingestion.
+    If data already exists, start from the last timestamp + 1 minute.
+    Otherwise, use the requested start date.
+    
+    Args:
+        symbol: Stock symbol
+        requested_start_date: The start date requested for ingestion
+        table: Table name ('bars', 'quotes', or 'trades')
+    
+    Returns:
+        Effective start date for ingestion
+    """
+    from datetime import timedelta
+    
+    last_timestamp = get_last_timestamp_for_symbol(symbol, table)
+    
+    if last_timestamp is None:
+        # No existing data, use requested start date
+        return requested_start_date
+    
+    # If last timestamp is before requested start date, use requested start date
+    if last_timestamp < requested_start_date:
+        return requested_start_date
+    
+    # Otherwise, start from last timestamp + 1 minute to avoid duplicates
+    effective_start = last_timestamp + timedelta(minutes=1)
+    
+    # But don't start after the requested start date
+    if effective_start > requested_start_date:
+        logger.info(
+            f"Symbol {symbol} has existing {table} data up to {last_timestamp}. "
+            f"Starting ingestion from {effective_start} (requested: {requested_start_date})"
+        )
+        return effective_start
+    
+    return requested_start_date
+
+
 def insert_nasdaq100_stocks() -> Dict[str, int]:
     """
     Fetch Nasdaq-100 tickers from Wikipedia and insert/update them in the database.
